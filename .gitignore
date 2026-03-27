@@ -1,0 +1,25 @@
+# Python virtual environment
+venv/
+
+# Pipeline output artifacts
+checkpoints/
+
+# YOLO training run outputs
+runs/
+
+# Pre-trained model binary (downloaded automatically by ultralytics)
+yolov8n.pt
+*.pt
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/

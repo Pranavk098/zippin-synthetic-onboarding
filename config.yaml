@@ -1,0 +1,8 @@
+ollama_url: "http://localhost:11434/api/generate"
+vlm_model: "llava:7b"
+yolo_model: "yolov8n.pt"
+render_count: 15
+image_resolution: [640, 640]
+ewc_lambda: 5000
+camera_distance_range: [1.5, 3.0]
+camera_elevation_range: [0.1, 1.5]
