@@ -22,7 +22,7 @@ jobs:
         run: pip install -e ".[eval]"
 
       - name: Check imports
-        run: python -c "from src.pipeline.orchestrator import main; from src.api.server import app; from src.continual_learning.ewc import EWC"
+        run: python -c "from src.pipeline.orchestrator import run_pipeline; from src.api.server import app; from src.continual_learning.ewc import EWC"
 
       - name: Dry-run pipeline
         run: python -m src.pipeline.orchestrator --stage all --image product.jpg --dry-run
