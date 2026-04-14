@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  lint-and-dry-run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install core dependencies
+        run: pip install -e ".[eval]"
+
+      - name: Check imports
+        run: python -c "from src.pipeline.orchestrator import main; from src.api.server import app; from src.continual_learning.ewc import EWC"
+
+      - name: Dry-run pipeline
+        run: python -m src.pipeline.orchestrator --stage all --image product.jpg --dry-run

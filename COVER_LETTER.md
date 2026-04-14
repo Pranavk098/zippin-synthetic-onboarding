@@ -3,9 +3,6 @@
 
 ---
 
-> *"The best engineers don't just solve the problem in front of them —  
->  they solve the problem behind the problem."*
-
 This repository is my application to join Zippin.
 
 Not a resume. Not a cover letter template. A working proof — built on my own time — that I understand your core engineering bottleneck deeply enough to have already started solving it.
@@ -31,6 +28,8 @@ When you fine-tune a detection model on new SKU data, it overwrites the paramete
 
 My thesis: **these three constraints are not independent problems — they are one problem**.  
 And the solution is a single, disciplined pipeline that addresses all three simultaneously.
+
+> **The detail that separates this from a paper re-implementation:** Most public EWC code computes the Fisher matrix and stops — it measures importance without ever injecting the penalty into training. This codebase overrides `criterion()` in a custom `DetectionTrainer` subclass so the EWC penalty lands on every gradient update, not just around it. The math is real. The forgetting protection is real. Full breakdown in Decision 2 below.
 
 ---
 
@@ -155,19 +154,15 @@ The most important thing in a complex codebase is understanding *why* a choice w
 
 Before reaching out, I spent real time studying Zippin from the outside: engineering blog posts, patent filings, published architecture descriptions, conference talks from your Chief Scientist. I read everything publicly available about your edge compute constraints, your sensor fusion approach, and the specific challenges of deploying frictionless checkout across heterogeneous venue formats.
 
-Then I spent approximately 40 hours writing code against those constraints — not generic ML code, but code that respects the 8GB VRAM ceiling, the 60 FPS SLA, and the continual learning problem that gets harder with every SKU you add to the catalogue. The three future proposals in this repository (`sensor_fusion.py`, `analytics_rag.py`, the EWC benchmark) are not whiteboard ideas. They are running implementations of architectural solutions to problems I identified in your published technical writing.
+Then I built code against those constraints — not generic ML code, but code that respects the 8GB VRAM ceiling, the 60 FPS SLA, and the continual learning problem that gets harder with every SKU you add to the catalogue. The three future proposals in this repository (`sensor_fusion.py`, `analytics_rag.py`, the EWC benchmark) are not whiteboard ideas. They are running implementations of architectural solutions to problems I identified in your published technical writing.
 
 That is what I'm willing to invest before I'm even on the team.
 
-**What I'm asking for is a chance — one conversation.**
+**I'm asking for one conversation.**
 
 A 30-minute call with Motilal Agrawal, Abhinav Katiyar, or whoever on the engineering team is the right person to evaluate this work. I want to walk through the architecture decisions, answer the hard questions (why EWC over QLoRA, what breaks at 10,000 SKUs, how the EKF degrades under multi-shopper occlusion, where the Sim2Real gap actually lives), and let the quality of the technical judgment speak for itself.
 
-I am not asking for a favour. I am asking for the opportunity to prove — in a real engineering conversation — that the depth of investment you're seeing here carries forward into every problem I'd touch on the team.
-
-I am genuinely excited about what Zippin is building. Autonomous retail at stadium scale, with the accuracy requirements and edge constraints you're operating under, is one of the most technically interesting deployment problems in applied AI right now. I want to be in the room where those problems get solved.
-
-If this work demonstrates the kind of engineering judgment that belongs on your team, I'd very much welcome the conversation.
+Autonomous retail at stadium scale, with the accuracy requirements and edge constraints you're operating under, is one of the most technically interesting deployment problems in applied AI right now. I want to be in the room where those problems get solved.
 
 ---
 

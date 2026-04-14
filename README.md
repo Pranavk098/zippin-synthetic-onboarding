@@ -1,5 +1,7 @@
 # Zero-Shot SKU Onboarding — Zippin Edge AI Platform (v2.0)
 
+![Python](https://img.shields.io/badge/python-3.10%2B-blue) ![License](https://img.shields.io/badge/license-MIT-green) ![CI](https://github.com/pranavkoduru/zippin-synthetic-onboarding-poc/actions/workflows/ci.yml/badge.svg)
+
 A production-grade, end-to-end pipeline that onboards a **new retail SKU in under 10 minutes** from a single product photograph — no real-world data collection required.
 
 ---
@@ -19,29 +21,16 @@ Manual dataset collection for every new shelf item makes rapid Zippin store expa
 
 ## Architecture
 
-```
- ┌─────────────────────────────────────────────────────────────────────┐
- │                     POST /onboard  (FastAPI)                        │
- │                    ┌────────────────────────┐                       │
- │   product.jpg ───► │  Stage 1: VLM Extract  │ Ollama + LLaVA-7B    │
- │                    │  (semantic attributes) │ 4-bit GGUF, <8GB VRAM│
- │                    └──────────┬─────────────┘                       │
- │                               │ shape, material, colors             │
- │                    ┌──────────▼─────────────┐                       │
- │                    │  Stage 2: BlenderProc2 │ 50 renders/SKU        │
- │                    │  (COCO synthetic data) │ HDRI + occlusion DR   │
- │                    └──────────┬─────────────┘                       │
- │                               │ COCO JSON                           │
- │                    ┌──────────▼─────────────┐                       │
- │                    │  Stage 3: YOLOv8n      │ ~3.2M params          │
- │                    │  + EWC (Fisher matrix) │ 60 FPS Jetson Orin    │
- │                    └──────────┬─────────────┘                       │
- │                               │ fine-tuned .pt                      │
- │                    ┌──────────▼─────────────┐                       │
- │                    │  Stage 4: Sim2Real Eval│ pycocotools mAP@50    │
- │                    │  (real shelf images)   │ confidence breakdown  │
- │                    └────────────────────────┘                       │
- └─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    I[product.jpg] --> A
+    subgraph API ["POST /onboard  (FastAPI async job queue)"]
+        A["Stage 1: VLM Extract\nOllama + LLaVA-7B GGUF\n~4.2 GB VRAM"] -->|"shape · material · colors"| B
+        B["Stage 2: BlenderProc2\n50 renders · HDRI + occlusion DR\nCOCO annotations"] -->|"coco_annotations.json"| C
+        C["Stage 3: YOLOv8n + EWC\nFisher matrix per-batch\n~25 MB state overhead"] -->|"fine-tuned .pt"| D
+        D["Stage 4: Sim2Real Eval\npycocotools mAP@50\nconfidence breakdown"]
+    end
+    D --> E["GET /skus/{id}/metrics"]
 ```
 
 ---
@@ -87,6 +76,38 @@ Physics-based rendering with:
 | Stage 3 (EWC Fine-tune) | ✓ | ✓ (primary target) |
 | Stage 4 (Eval) | ✓ | ✓ |
 | Runtime Inference | — | ✓ 60 FPS YOLOv8n TensorRT |
+
+---
+
+## Demo Output
+
+### Synthetic renders (BlenderProc2 — domain-randomised)
+
+Generated from a single product photo. 50 renders/SKU with randomised HDRI lighting, occluders, and camera angles:
+
+| | | |
+|---|---|---|
+| ![render 0](checkpoints/synthetic_dataset/images/000000.jpg) | ![render 1](checkpoints/synthetic_dataset/images/000005.jpg) | ![render 2](checkpoints/synthetic_dataset/images/000010.jpg) |
+| ![render 3](checkpoints/synthetic_dataset/images/000015.jpg) | ![render 4](checkpoints/synthetic_dataset/images/000020.jpg) | ![render 5](checkpoints/synthetic_dataset/images/000025.jpg) |
+
+### Training run results (YOLOv8n + EWC)
+
+![Training results](runs/detect/checkpoints/yolo_run/results.png)
+
+| Validation labels | Validation predictions |
+|---|---|
+| ![val labels](runs/detect/checkpoints/yolo_run/val_batch0_labels.jpg) | ![val preds](runs/detect/checkpoints/yolo_run/val_batch0_pred.jpg) |
+
+### Dry-run (no GPU required)
+
+```bash
+python -m src.pipeline.orchestrator --stage all --image product.jpg --dry-run
+# [DRY-RUN] Stage 1: VLM extract skipped
+# [DRY-RUN] Stage 2: BlenderProc2 skipped (would generate 50 renders)
+# [DRY-RUN] Stage 3: EWC fine-tune skipped
+# [DRY-RUN] Stage 4: Eval skipped
+# Pipeline wiring: OK
+```
 
 ---
 
