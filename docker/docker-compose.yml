@@ -1,0 +1,74 @@
+# ============================================================
+# Zippin Zero-Shot SKU Onboarding — Local Development Stack
+#
+# Services:
+#   api       — FastAPI pipeline server (GPU worker)
+#   ollama    — Local LLaVA inference for Stage 1 extraction
+#
+# Usage:
+#   docker compose up          # Start full stack
+#   docker compose up api      # API only (if Ollama already running)
+# ============================================================
+
+version: "3.9"
+
+services:
+
+  # ---- FastAPI Onboarding Server -------------------------------------------
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: zippin-sku-onboarding:latest
+    container_name: zippin-api
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount checkpoints so weights persist across container restarts
+      - ../checkpoints:/app/checkpoints
+      # Mount real validation images (optional)
+      - ../real_validation:/app/real_validation:ro
+    environment:
+      - CHECKPOINT_DIR=/app/checkpoints
+      - OLLAMA_URL=http://ollama:11434/api/generate
+    depends_on:
+      - ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ---- Ollama LLaVA Inference Server ----------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: zippin-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      - OLLAMA_ORIGINS=*
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    # Pull LLaVA on first start
+    entrypoint: ["/bin/bash", "-c",
+      "ollama serve & sleep 5 && ollama pull llava:7b && wait"]
+
+volumes:
+  ollama-models:
+    driver: local

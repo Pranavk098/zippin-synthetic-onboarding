@@ -56,7 +56,8 @@ def stage_extract(image_path: str, config, dry_run=False):
         output = response.json()["response"]
         
         # Cleanup JSON formatting
-        output = output.strip().strip('```json').strip('```')
+        import re
+        output = re.sub(r'```(?:json)?\s*', '', output).strip()
         parsed_json = json.loads(output)
         
         os.makedirs("checkpoints", exist_ok=True)
@@ -123,11 +124,11 @@ def convert_coco_to_yolo(coco_json, output_dir):
     os.makedirs(f"{output_dir}/images/train", exist_ok=True)
     os.makedirs(f"{output_dir}/labels/train", exist_ok=True)
     
-    with open(f"{output_dir}/dataset.yaml", "w") as f:
+    with open(os.path.join(output_dir, "dataset.yaml"), "w") as f:
         f.write(f"path: {os.path.abspath(output_dir)}\n")
         f.write("train: images/train\n")
         f.write("val: images/train\n")
-        f.write("nc: 1\nnames: ['TargetSKU']\n")
+        f.write("nc: 1\nnames:\n  0: TargetSKU\n")
         
     for img in data["images"]:
         img_id = img["id"]
@@ -184,7 +185,7 @@ def stage_train(config, dry_run=False):
     print("[Stage 3: Train] Starting fine-tuning loop on newly generated dataset...")
     # Using Ultralytics built-in trainer for the converted synthetic dataset
     train_args = {
-        "data": f"{os.path.abspath(yolo_dir)}/dataset.yaml",
+        "data": os.path.join(os.path.abspath(yolo_dir), "dataset.yaml"),
         "epochs": 3,
         "imgsz": config.get("image_resolution", [640, 640])[0], 
         "device": "cpu", # Using CPU for robust compatibility unless overriding

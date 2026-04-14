@@ -16,7 +16,7 @@ def render(features_path):
     config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
     try:
         with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
+            config = yaml.safe_load(f) or {}
     except Exception as e:
         print(f"[Stage 2: Generate] Error reading config.yaml: {e}")
         config = {}
@@ -36,11 +36,33 @@ def render(features_path):
     obj.set_name("TargetSKU")
     obj.set_cp("category_id", 1) # Must possess a category ID to be tracked in COCO!
     
-    # HDRI Lighting application (Simulating Stadium environment)
-    light = bproc.types.Light()
-    light.set_type("POINT")
-    light.set_location([0, 0, 4])
-    light.set_energy(1000)
+    # Process VLM Material semantics
+    mat = bproc.material.create("sku_material")
+    material_desc = attrs.get("material", "").lower()
+    
+    if "gloss" in material_desc or "aluminum" in material_desc or "plastic" in material_desc:
+        mat.set_principled_shader_value("Roughness", 0.1)
+        mat.set_principled_shader_value("Metallic", 0.6 if "aluminum" in material_desc else 0.0)
+    else:
+        mat.set_principled_shader_value("Roughness", 0.9) # Matte standard
+    
+    obj.replace_materials(mat)
+
+    # Floor and distractor occluders to prevent empty void overfitting
+    floor = bproc.object.create_primitive("PLANE", scale=[10, 10, 1])
+    floor.set_location([0, 0, 0])
+    
+    for _ in range(3):
+        occ = bproc.object.create_primitive("CUBE", scale=[0.15, 0.15, 0.15])
+        occ.set_location(np.random.uniform([-0.8, -0.8, 0.1], [0.8, 0.8, 0.5]))
+        occ.set_cp("category_id", 0) # Background (not bounding boxed)
+    
+    # Replaced pure point light with physical floodlight simulation
+    for pos in [[2, 2, 4], [-2, 2, 4], [0, -3, 4]]:
+        light = bproc.types.Light()
+        light.set_type("AREA")
+        light.set_location(pos)
+        light.set_energy(300)
     
     dist_range = config.get("camera_distance_range", [1.5, 3.0])
     elev_range = config.get("camera_elevation_range", [0.1, 1.5])

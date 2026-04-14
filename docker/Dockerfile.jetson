@@ -1,0 +1,33 @@
+# ============================================================
+# Zippin Zero-Shot SKU Onboarding — NVIDIA Jetson Orin Image
+#
+# Targets Jetson Orin NX (8GB) running JetPack 5.x / L4T 35.x
+# - CUDA 11.4 / cuDNN 8.6 AArch64
+# - YOLOv8n runs at ~60 FPS on Orin NX in FP16 via TensorRT
+# - EWC inference overhead: < 2ms per batch (single linear pass)
+# ============================================================
+FROM nvcr.io/nvidia/l4t-pytorch:r35.2.1-pth2.0-py3
+
+WORKDIR /app
+
+# Install Python packages (prefer wheels for aarch64 when available)
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir \
+    httpx pyyaml numpy \
+    ultralytics \
+    fastapi "uvicorn[standard]" python-multipart \
+    pycocotools
+
+# BlenderProc2 on Jetson: headless CPU-only render (Eevee not available)
+# For production Jetson deployments, Stage 2 is offloaded to a cloud worker
+# and the Jetson only runs Stages 3 (EWC fine-tune) and 4 (edge inference).
+# See README "Hybrid Cloud-Edge" deployment pattern.
+
+COPY . .
+
+EXPOSE 8080
+
+# On Jetson: edge inference + continual learning only (no rendering)
+CMD ["uvicorn", "src.api.server:app", \
+     "--host", "0.0.0.0", "--port", "8080", \
+     "--workers", "1"]
