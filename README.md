@@ -1,6 +1,6 @@
 # Zero-Shot SKU Onboarding — Zippin Edge AI Platform (v2.0)
 
-![Python](https://img.shields.io/badge/python-3.10%2B-blue) ![License](https://img.shields.io/badge/license-MIT-green) ![CI](https://github.com/pranavkoduru/zippin-synthetic-onboarding-poc/actions/workflows/ci.yml/badge.svg)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue) ![License](https://img.shields.io/badge/license-MIT-green) ![CI](https://github.com/Pranavk098/zippin-synthetic-onboarding/actions/workflows/ci.yml/badge.svg) ![Edge Optimized](https://img.shields.io/badge/edge--optimized-Jetson%20Orin%20NX-76b900?logo=nvidia) ![TensorRT Ready](https://img.shields.io/badge/TensorRT-FP16%20%7C%20INT8-76b900?logo=nvidia) ![Blender Scripted](https://img.shields.io/badge/BlenderProc2-domain%20randomisation-orange?logo=blender)
 
 A production-grade, end-to-end pipeline that onboards a **new retail SKU in under 10 minutes** from a single product photograph — no real-world data collection required.
 
@@ -124,9 +124,9 @@ zippin-synthetic-onboarding-poc/
 │   │       ├── extract.py      ← Stage 1: LLaVA semantic extraction
 │   │       ├── generate.py     ← Stage 2: BlenderProc2 orchestration
 │   │       ├── train.py        ← Stage 3: YOLOv8n + EWC fine-tuning
-│   │       └── eval.py         ← Stage 4: pycocotools mAP evaluation
+│   │       └── eval.py         ← Stage 4: mAP eval + failure gallery
 │   ├── rendering/
-│   │   └── bproc_generator.py  ← BlenderProc2 scene script
+│   │   └── bproc_generator.py  ← BlenderProc2 + occlusion stress suites
 │   ├── api/
 │   │   ├── server.py           ← FastAPI REST service
 │   │   └── schemas.py          ← Pydantic request/response models
@@ -134,6 +134,11 @@ zippin-synthetic-onboarding-poc/
 │       ├── coco_to_yolo.py     ← COCO → YOLO format conversion
 │       ├── metrics.py          ← pycocotools + NumPy mAP fallback
 │       └── sku_registry.py     ← Thread-safe multi-SKU state store
+├── scripts/
+│   ├── benchmark_ewc.py        ← EWC retention benchmark across N SKUs
+│   ├── export_tensorrt.py      ← YOLOv8n → TensorRT FP16/INT8 engine
+│   ├── compute_dis.py          ← Domain Invariance Score (CLIP embeddings)
+│   └── profile_edge.py         ← Jetson Orin NX quantization profiler
 ├── docker/
 │   ├── Dockerfile              ← GPU worker (CUDA 12.1)
 │   ├── Dockerfile.jetson       ← Jetson Orin NX (L4T aarch64)
@@ -251,6 +256,116 @@ approximately **25MB** for YOLOv8n. This is the entire continual learning memory
 | Mean inference latency (Jetson Orin NX) | ≤ 17ms | 60 FPS requirement |
 | New SKU onboarding time | < 10 min | End-to-end pipeline |
 | EWC memory overhead | ~25 MB | Fixed regardless of SKU count |
+
+---
+
+## Production QA Tooling
+
+Four additional scripts address the failure modes that matter most in a real Zippin deployment:
+
+### Occlusion Stress-Test Suite
+
+Zippin's Chief Scientist has noted that small products can be completely covered by a shopper's hand during a pick event. The renderer now generates targeted stress suites alongside standard data:
+
+```bash
+# Partial occlusion (30–55% SKU coverage) — reaching-arm events
+BPROC_OCCLUSION_MODE=partial_stress \
+  blenderproc run src/rendering/bproc_generator.py checkpoints/sku_features.json
+
+# Full occlusion (75–95% coverage) — product nearly invisible
+BPROC_OCCLUSION_MODE=full_stress \
+  blenderproc run src/rendering/bproc_generator.py checkpoints/sku_features.json
+
+# All three suites in sequence
+BPROC_OCCLUSION_MODE=all \
+  blenderproc run src/rendering/bproc_generator.py checkpoints/sku_features.json
+```
+
+Outputs to `checkpoints/synthetic_dataset/occlusion_stress/partial/` and `.../full/` with independent COCO annotations. Use the `full/` suite to calibrate the sensor-fusion confidence threshold in `src/proposals/sensor_fusion.py`.
+
+---
+
+### Domain Invariance Score (DIS)
+
+Measures how well synthetic renders approximate the visual feature space of the original product photo using **CLIP ViT-B/32** embeddings. Catches Sim2Real gaps before they become mAP surprises on real shelf cameras.
+
+```bash
+python scripts/compute_dis.py \
+    --original  product.jpg \
+    --synthetic checkpoints/synthetic_dataset/images/ \
+    --output    checkpoints/dis_report.json
+```
+
+```
+══════════════════════════════════════════════════════
+  Domain Invariance Score (DIS)  —  clip-vit-b32
+══════════════════════════════════════════════════════
+  DIS (mean cosine sim) : 0.8341   [PASS]
+  Std deviation         : 0.0412
+  Range                 : [0.7190, 0.9203]
+  p10 / p25 / p75 / p90 : 0.778 / 0.809 / 0.862 / 0.889
+  n_renders             : 50
+  n < 0.70 (FAIL band)  : 0
+  n < 0.80 (WARN band)  : 9
+══════════════════════════════════════════════════════
+```
+
+| DIS Score | Status | Action |
+|---|---|---|
+| ≥ 0.80 | **PASS** | Tight alignment — proceed to training |
+| 0.70–0.80 | **WARN** | Increase render count or DR passes |
+| < 0.70 | **FAIL** | Check VLM attribute extraction (Stage 1) |
+
+---
+
+### Edge Quantization Profiler
+
+Profiles FP32, FP16, and INT8 quantization tiers against the Jetson Orin NX SLA. Works in **simulation mode** on any laptop (no Jetson required) by projecting CPU timings to expected Jetson performance.
+
+```bash
+# Full TensorRT profiling (requires CUDA)
+python scripts/profile_edge.py --weights checkpoints/new_sku_weights.pt
+
+# Simulation mode (CPU → Jetson projection, works on any machine)
+python scripts/profile_edge.py --weights checkpoints/new_sku_weights.pt --simulate
+```
+
+```
+══════════════════════════════════════════════════════════════════════
+  Tier     Backend              p50 (ms)     FPS      Size MB    SLA
+  -------- -------------------- ------------ -------- ---------- ----
+  FP32     PyTorch              31.4         31.8     12.1       FAIL
+  FP16     PyTorch              11.8         84.7     6.1        PASS
+  INT8     TensorRT             8.2          121.9    3.4        PASS
+══════════════════════════════════════════════════════════════════════
+  Recommended: FP16 — best FPS/accuracy tradeoff for 60-FPS SLA
+  INT8 recommended when thermal budget is constrained (outdoor venues)
+```
+
+---
+
+### Automated Failure Gallery
+
+Every eval run automatically saves the **10 lowest-confidence images** to `checkpoints/failure_gallery/<job_id>/` with a ranked JSON summary. Zero-detection images (hardest cases) rank first.
+
+```
+checkpoints/failure_gallery/abc123/
+├── 01_conf0.000_shelf_front_01.jpg   ← no detection (full occlusion?)
+├── 02_conf0.182_shelf_angle_07.jpg   ← low confidence (lighting?)
+├── 03_conf0.241_shelf_tilt_03.jpg
+├── ...
+└── gallery_summary.json
+```
+
+```json
+{
+  "rank": 1,
+  "max_confidence": 0.0,
+  "n_detections": 0,
+  "diagnosis_hint": "No detections — possible full occlusion, extreme angle,
+                     or severe domain shift."
+}
+```
 
 ---
 
