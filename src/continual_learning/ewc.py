@@ -160,7 +160,7 @@ class EWC:
                 samples_processed += imgs.size(0)
 
             except Exception as exc:
-                logger.debug(f"[EWC] Fisher batch failed ({exc}), skipping.")
+                logger.warning(f"[EWC] Fisher batch failed ({type(exc).__name__}: {exc}), skipping.")
                 continue
 
         model.train()

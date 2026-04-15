@@ -22,15 +22,44 @@ Manual dataset collection for every new shelf item makes rapid Zippin store expa
 ## Architecture
 
 ```mermaid
-flowchart TD
-    I[product.jpg] --> A
-    subgraph API ["POST /onboard  (FastAPI async job queue)"]
-        A["Stage 1: VLM Extract\nOllama + LLaVA-7B GGUF\n~4.2 GB VRAM"] -->|"shape · material · colors"| B
-        B["Stage 2: BlenderProc2\n50 renders · HDRI + occlusion DR\nCOCO annotations"] -->|"coco_annotations.json"| C
-        C["Stage 3: YOLOv8n + EWC\nFisher matrix per-batch\n~25 MB state overhead"] -->|"fine-tuned .pt"| D
-        D["Stage 4: Sim2Real Eval\npycocotools mAP@50\nconfidence breakdown"]
+flowchart LR
+    classDef input    fill:#1a237e,stroke:#3949ab,color:#fff,font-weight:bold,rx:8
+    classDef stage    fill:#0d47a1,stroke:#42a5f5,color:#fff,rx:6
+    classDef ewc      fill:#4a148c,stroke:#ab47bc,color:#fff,rx:6
+    classDef edge     fill:#1b5e20,stroke:#66bb6a,color:#fff,font-weight:bold,rx:8
+    classDef api      fill:#e65100,stroke:#ff9800,color:#fff,rx:6
+    classDef out      fill:#004d40,stroke:#26a69a,color:#fff,rx:8
+    classDef qa       fill:#37474f,stroke:#78909c,color:#fff,rx:4
+
+    IMG(["📷 product.jpg"]):::input
+
+    subgraph PIPELINE ["  POST /onboard — FastAPI async job queue  "]
+        direction TB
+        S1["① VLM Extraction\nOllama · LLaVA-7B GGUF\n≈ 4.2 GB VRAM"]:::stage
+        S2["② BlenderProc2\n50 renders · HDRI lighting\nocclusion domain-rand"]:::stage
+        S3["③ YOLOv8n · EWC\nFisher matrix per-batch\n≈ 25 MB state overhead"]:::stage
+        S4["④ Sim2Real Eval\npycocotools mAP@50\nfailure gallery → disk"]:::stage
+        EWC[("💾 ewc_state.pt\nonline Fisher avg\nO(params) fixed")]:::ewc
     end
-    D --> E["GET /skus/{id}/metrics"]
+
+    subgraph QA ["  Quality Assurance  "]
+        direction TB
+        DIS["🔬 DIS Score\nCLIP ViT-B/32\nSim2Real gap"]:::qa
+        PROF["⚡ Edge Profiler\nFP16 · INT8\nJetson SLA check"]:::qa
+    end
+
+    JETSON(["🟢 Jetson Orin NX\nTensorRT FP16\n≈ 12 ms · 83 FPS"]):::edge
+    OUT(["📊 GET /metrics\nmAP@50 · confidence\nfailure gallery"]):::out
+
+    IMG        --> S1
+    S1         -->|"shape · material · colours"| S2
+    S2         -->|"coco_annotations.json"| S3
+    S3         -->|"new_sku_weights.pt"| S4
+    S3         <-->|"consolidate / restore"| EWC
+    S4         --> OUT
+    S2         -.->|"renders"| DIS
+    S3         -->|"weights"| PROF
+    PROF       -->|"TensorRT engine"| JETSON
 ```
 
 ---

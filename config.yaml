@@ -1,8 +1,11 @@
 ollama_url: "http://localhost:11434/api/generate"
 vlm_model: "llava:7b"
 yolo_model: "yolov8n.pt"
-render_count: 15
+render_count: 300
 image_resolution: [640, 640]
+train_epochs: 50
+train_batch: 8        # safe for 4 GB VRAM; raise to 16 on 8 GB+
+train_workers: 0      # 0 = main-process loading (required on Windows)
 ewc_lambda: 5000
 camera_distance_range: [1.5, 3.0]
 camera_elevation_range: [0.1, 1.5]

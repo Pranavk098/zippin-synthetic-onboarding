@@ -58,6 +58,19 @@ def stage_generate(
         _mock_coco_output(output_dir)
         return os.path.join(output_dir, "coco_annotations.json")
 
+    # ---- Clean output dir before render -----------------------------------------
+    # BlenderProc2 appends to coco_annotations.json rather than replacing it.
+    # Wiping the images/ folder and the JSON ensures each run starts fresh and
+    # never accumulates stale image references from previous sessions.
+    images_dir = os.path.join(output_dir, "images")
+    coco_json  = os.path.join(output_dir, "coco_annotations.json")
+    if os.path.exists(images_dir):
+        shutil.rmtree(images_dir)
+        logger.info(f"{tag} Cleared stale renders: {images_dir}")
+    if os.path.exists(coco_json):
+        os.remove(coco_json)
+        logger.info(f"{tag} Cleared stale COCO JSON: {coco_json}")
+
     if not os.path.exists(features_path):
         raise FileNotFoundError(
             f"{tag} Features checkpoint missing: {features_path}. Run Stage 1 first."

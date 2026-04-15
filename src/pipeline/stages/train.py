@@ -104,21 +104,25 @@ def stage_train(
     # gradient update — not just report it before/after training.
     EWCTrainerClass = build_ewc_trainer(ewc)
 
-    epochs = config.get("train_epochs", 10)
-    imgsz = config.get("image_resolution", [640, 640])[0]
+    epochs  = config.get("train_epochs", 10)
+    imgsz   = config.get("image_resolution", [640, 640])[0]
+    batch   = config.get("train_batch", 8)      # explicit batch prevents auto-batch OOM
+    workers = config.get("train_workers", 0)    # 0 = main-process (safe on Windows)
     train_run_name = f"sku_run_{job_id or 'latest'}"
 
     train_kwargs = {
-        "data": dataset_yaml,
-        "epochs": epochs,
-        "imgsz": imgsz,
-        "device": 0 if torch.cuda.is_available() else "cpu",
-        "project": checkpoint_dir,
-        "name": train_run_name,
+        "data":     dataset_yaml,
+        "epochs":   epochs,
+        "imgsz":    imgsz,
+        "batch":    batch,
+        "workers":  workers,
+        "device":   0 if torch.cuda.is_available() else "cpu",
+        "project":  checkpoint_dir,
+        "name":     train_run_name,
         "exist_ok": True,
-        "verbose": False,
-        "plots": False,
-        "trainer": EWCTrainerClass,   # ← EWC penalty injected per-batch
+        "verbose":  False,
+        "plots":    False,
+        "trainer":  EWCTrainerClass,   # ← EWC penalty injected per-batch
     }
 
     logger.info(f"{tag} Training YOLOv8n — epochs={epochs}, device={train_kwargs['device']}")
