@@ -16,11 +16,11 @@ Failure Gallery
 After inference, the 10 images on which the model was least confident
 (lowest max detection score, or zero detections) are copied to:
 
-    <checkpoint_dir>/failure_gallery/<job_id>/
+    <checkpoint_dir>/<run_id>/failure_gallery/
 
 alongside a machine-readable JSON summary:
 
-    <checkpoint_dir>/failure_gallery/<job_id>/gallery_summary.json
+    <checkpoint_dir>/<run_id>/failure_gallery/gallery_summary.json
 
 This makes iterative debugging concrete — instead of staring at aggregate
 mAP numbers, you look at exactly which real images confused the model and
