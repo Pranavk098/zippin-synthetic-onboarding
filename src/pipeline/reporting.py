@@ -43,8 +43,11 @@ def _copy_render_thumbnails(run_dir: Path, coco_json: Optional[str], n: int = 6)
     copied = []
     for i, src in enumerate(all_images[:n], start=1):
         dst = renders_dst / f"render_{i:03d}{src.suffix}"
-        shutil.copy2(src, dst)
-        copied.append(f"renders/render_{i:03d}{src.suffix}")
+        try:
+            shutil.copy2(src, dst)
+            copied.append(f"renders/render_{i:03d}{src.suffix}")
+        except OSError as e:
+            logger.warning(f"[Report] Could not copy render {src.name}: {e}")
 
     return copied
 
