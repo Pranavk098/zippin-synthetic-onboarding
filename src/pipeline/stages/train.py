@@ -148,6 +148,16 @@ def stage_train(
     # ---- 6. Consolidate EWC for next SKU onboarding -------------------------
     _consolidate_ewc(ewc, model, run_dir, device, ewc_state_path, tag)
 
+    # Snapshot the updated EWC state into the run folder for reproducibility.
+    # The canonical ewc_state.pt at checkpoint_dir root is what the NEXT run loads.
+    # The snapshot records exactly what EWC state existed after THIS run.
+    per_run_dir = Path(checkpoint_dir) / (job_id or "local")
+    per_run_dir.mkdir(parents=True, exist_ok=True)
+    ewc_snapshot = per_run_dir / "ewc_state_snapshot.pt"
+    if os.path.exists(ewc_state_path):
+        shutil.copy(ewc_state_path, str(ewc_snapshot))
+        logger.info(f"{tag} EWC snapshot: {ewc_snapshot}")
+
     return weights_dst
 
 
@@ -158,6 +168,15 @@ def _consolidate_ewc(
     After training, build a DataLoader over the synthetic images and run
     EWC consolidation so the next SKU fine-tune is protected by the current
     Fisher matrix.
+
+    Failure behaviour:
+      - On SKU 1 (no prior ewc_state_path): log a warning and return.
+        Uniform Fisher is acceptable for the very first task — there is
+        nothing prior to protect.
+      - On SKU ≥ 2 (ewc_state_path exists): RAISE.  Silent consolidation
+        failure on subsequent SKUs degrades EWC to plain L2 regularisation
+        without any per-parameter importance weighting, silently breaking
+        the continual-learning guarantee.
     """
     import torch
     from torch.utils.data import DataLoader, Dataset
@@ -165,9 +184,23 @@ def _consolidate_ewc(
     from PIL import Image
     import numpy as np
 
+    prior_state_exists = os.path.exists(ewc_state_path)
+
     img_dir = Path(yolo_dir) / "images" / "train"
     if not img_dir.exists():
-        logger.warning(f"{tag} Consolidation skipped — image dir not found: {img_dir}")
+        msg = (
+            f"{tag} EWC consolidation failed — training image directory not found: "
+            f"{img_dir}. Ensure Stage 2 (render) completed successfully and the "
+            f"COCO→YOLO conversion wrote images to this path."
+        )
+        if prior_state_exists:
+            raise RuntimeError(
+                msg + "\n"
+                "A prior EWC state exists, so this is SKU ≥ 2. "
+                "Skipping consolidation would silently drop Fisher importance weights "
+                "and degrade EWC to L2 — raising to prevent silent learning regression."
+            )
+        logger.warning(msg + " (first SKU — uniform Fisher is acceptable, continuing.)")
         return
 
     class _SyntheticDS(Dataset):
@@ -187,8 +220,24 @@ def _consolidate_ewc(
 
     dataset = _SyntheticDS(img_dir)
     if len(dataset) == 0:
-        logger.warning(f"{tag} No images in {img_dir} — EWC consolidation skipped.")
+        msg = (
+            f"{tag} EWC consolidation failed — no images found in {img_dir}. "
+            "Stage 2 may have produced zero renders."
+        )
+        if prior_state_exists:
+            raise RuntimeError(
+                msg + "\n"
+                "A prior EWC state exists (SKU ≥ 2). Cannot safely consolidate "
+                "without training images — raising to prevent silent L2 degradation."
+            )
+        logger.warning(msg + " (first SKU — skipping consolidation.)")
         return
+
+    # After YOLO training the internal nn.Module has requires_grad=False on all
+    # parameters (YOLO strips grads during export). Re-enable them so the Fisher
+    # forward pass can accumulate gradients for EWC importance weighting.
+    for p in model.model.parameters():
+        p.requires_grad_(True)
 
     loader = DataLoader(dataset, batch_size=4, shuffle=False)
     ewc.consolidate(model.model, loader)
