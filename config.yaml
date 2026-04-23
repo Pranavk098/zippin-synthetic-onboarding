@@ -9,3 +9,32 @@ train_workers: 0      # 0 = main-process loading (required on Windows)
 ewc_lambda: 5000
 camera_distance_range: [1.5, 3.0]
 camera_elevation_range: [0.1, 1.5]
+
+# ---- Stage 2a-2c: AI Mesh Reconstruction (TripoSR — free, local, no API cost) ----
+#
+# mesh_source:
+#   "reconstructed" — run TripoSR → Blender normaliser → critic gate → BlenderProc.
+#                     Enables arbitrary SKU shapes (bottles, bags, liquor bottles).
+#   "procedural"    — legacy path: hardcoded can/cube primitives in bproc_generator.
+#                     Use as fallback if TripoSR is not installed.
+mesh_source: "procedural"
+
+# mesh_backend:
+#   "triposr_local" — run TripoSR locally (requires: pip install tsr rembg).
+#                     ~5 GB VRAM at resolution=256. Unloads before BlenderProc.
+#   "hf_space"      — call HuggingFace Spaces TripoSR (free, no GPU, rate-limited).
+#                     Requires: pip install gradio-client. No API key needed.
+mesh_backend: "triposr_local"
+
+# Marching-cubes resolution for TripoSR mesh extraction.
+#   256 = fast (~30 s Jetson Orin NX, ~10 s desktop GPU). Recommended default.
+#   512 = higher quality, ~8 GB VRAM — desktop only.
+mesh_resolution: 256
+
+# Approximate VRAM budget in GB. TripoSR is skipped with a warning if GPU
+# reports less than this. Used for logging only — does not hard-block.
+mesh_vram_budget_gb: 6.0
+
+# Number of VLM re-check attempts in the critic quality gate before accepting
+# the mesh with a warning (training never blocks regardless of critic result).
+critic_max_retries: 2

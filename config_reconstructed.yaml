@@ -1,0 +1,28 @@
+# TripoSR-backed mesh reconstruction config.
+#
+# Requirements:
+#   pip install tsr rembg
+#   GPU with 6+ GB VRAM free (TripoSR uses ~5 GB at mesh_resolution=256)
+#   Tested on RTX 5070 (8 GB VRAM) at mesh_resolution=256.
+#
+# NOT the default. Use config.yaml (procedural) for first-run demos and CI.
+# Pass via: --config config_reconstructed.yaml
+
+ollama_url: "http://localhost:11434/api/generate"
+vlm_model: "llava:7b"
+yolo_model: "yolov8n.pt"
+render_count: 300
+image_resolution: [640, 640]
+train_epochs: 50
+train_batch: 8
+train_workers: 0
+ewc_lambda: 5000
+camera_distance_range: [1.5, 3.0]
+camera_elevation_range: [0.1, 1.5]
+val_fraction: 0.2
+
+mesh_source: "reconstructed"
+mesh_backend: "triposr_local"
+mesh_resolution: 256
+mesh_vram_budget_gb: 6.0
+critic_max_retries: 2
