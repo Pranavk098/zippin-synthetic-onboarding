@@ -201,10 +201,11 @@ def stage_eval(
     if not image_files:
         logger.warning(f"{tag} No images found in {real_images_dir}.")
         return {
-            "map50": 0.0, "map50_95": 0.0, "n_images": 0,
+            "map50": None, "map50_95": None, "n_images": 0,
             "n_detections": 0, "mean_confidence": 0.0,
             "eval_mode": "skipped",
             "eval_mode_note": "No real images found — eval skipped. Pass --real_dir to enable.",
+            "skipped": True,
         }
 
     try:
