@@ -1,7 +1,6 @@
 """
 Smoke tests for the pipeline. All run in dry_run mode — no GPU, Blender, or Ollama needed.
 """
-import pytest
 from pathlib import Path
 
 
@@ -22,7 +21,7 @@ def test_dry_run_produces_run_report(tmp_path):
     assert result["report_path"] is not None
 
 
-def test_no_gt_eval_returns_proxy_mode(tmp_path):
+def test_dry_run_eval_returns_dry_run_mode(tmp_path):
     from src.pipeline.stages.eval import stage_eval
 
     weights = tmp_path / "weights.pt"

@@ -69,7 +69,7 @@ def test_job_status_endpoint(client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["job_id"] == job_id
-    assert body["status"] in {"queued", "running", "complete", "failed"}
+    assert body["status"] == "complete"
 
 
 def test_metrics_endpoint_returns_eval_mode(client):
@@ -80,14 +80,12 @@ def test_metrics_endpoint_returns_eval_mode(client):
     ).json()["job_id"]
 
     resp = client.get(f"/skus/{job_id}/metrics")
-    # If background task ran synchronously, status is complete and metrics exist
-    if resp.status_code == 200:
-        body = resp.json()
-        assert "map50" in body
-        assert "eval_mode" in body
-    else:
-        # Background task may not have run yet — 404 is acceptable
-        assert resp.status_code == 404
+    assert resp.status_code == 200, (
+        f"Expected 200 — background task runs synchronously in TestClient, got {resp.status_code}"
+    )
+    body = resp.json()
+    assert "map50" in body
+    assert "eval_mode" in body
 
 
 def test_unknown_job_returns_404(client):
