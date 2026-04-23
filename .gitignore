@@ -26,3 +26,7 @@ Thumbs.db
 
 # Initial Documentation
 docs/*
+!docs/superpowers/
+!docs/superpowers/**
+!docs/benchmark_results/
+!docs/benchmark_results/**
