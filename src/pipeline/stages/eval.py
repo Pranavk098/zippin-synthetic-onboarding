@@ -42,8 +42,7 @@ logger = logging.getLogger(__name__)
 def _build_failure_gallery(
     results: list,
     image_files: List[Path],
-    checkpoint_dir: str,
-    job_id: Optional[str],
+    run_dir: str,
     n_failures: int = 10,
 ) -> str:
     """
@@ -57,8 +56,7 @@ def _build_failure_gallery(
     Args:
         results:        List of Ultralytics Results objects from model().
         image_files:    Ordered list of image paths (same order as results).
-        checkpoint_dir: Root checkpoint directory.
-        job_id:         Run identifier (used as sub-directory name).
+        run_dir:        Run-specific directory (e.g., checkpoints/<run_id>).
         n_failures:     Number of worst images to include. Default: 10.
 
     Returns:
@@ -79,12 +77,11 @@ def _build_failure_gallery(
     worst_n = scored[:n_failures]
 
     # --- Create gallery directory -------------------------------------------------
-    gallery_dir = Path(checkpoint_dir) / "failure_gallery" / (job_id or "default")
+    gallery_dir = Path(run_dir) / "failure_gallery"
     gallery_dir.mkdir(parents=True, exist_ok=True)
 
     # --- Copy images and build summary JSON --------------------------------------
     summary = {
-        "job_id":         job_id,
         "n_total_images": len(image_files),
         "n_gallery":      len(worst_n),
         "description": (
@@ -282,12 +279,12 @@ def stage_eval(
     gallery_dir = ""
     if n_failure_gallery > 0:
         try:
+            run_dir = os.path.join(checkpoint_dir, job_id or "local")
             gallery_dir = _build_failure_gallery(
-                results       = results,
-                image_files   = image_files,
-                checkpoint_dir= checkpoint_dir,
-                job_id        = job_id,
-                n_failures    = n_failure_gallery,
+                results     = results,
+                image_files = image_files,
+                run_dir     = run_dir,
+                n_failures  = n_failure_gallery,
             )
         except Exception as exc:
             logger.warning(f"{tag} Failure gallery generation failed (non-fatal): {exc}")
