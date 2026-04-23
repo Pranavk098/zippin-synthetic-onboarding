@@ -175,10 +175,39 @@ def stage_eval(
         status_callback("eval")
 
     if dry_run:
-        mock = {"map50": 0.0, "map50_95": 0.0, "n_images": 0,
-                "n_detections": 0, "mean_confidence": 0.0, "dry_run": True}
         logger.info(f"{tag} Dry-run — returning mock metrics.")
-        return mock
+        return {
+            "map50": 0.0, "map50_95": 0.0, "n_images": 0,
+            "n_detections": 0, "mean_confidence": 0.0,
+            "eval_mode": "dry_run",
+            "eval_mode_note": "Dry-run — mock metrics only.",
+            "dry_run": True,
+        }
+
+    # Early exits — check before importing ultralytics
+    real_dir = Path(real_images_dir) if real_images_dir else None
+    if real_dir is None or not real_dir.is_dir():
+        logger.warning(
+            f"{tag} Real images directory not found: '{real_images_dir}'. "
+            "Skipping Sim2Real evaluation — pass --real_dir to enable mAP scoring."
+        )
+        return {
+            "map50": None, "map50_95": None, "n_images": 0,
+            "n_detections": 0, "mean_confidence": 0.0,
+            "eval_mode": "skipped",
+            "eval_mode_note": "No real images found — eval skipped. Pass --real_dir to enable.",
+            "skipped": True,
+        }
+
+    image_files = list(real_dir.glob("*.jpg")) + list(real_dir.glob("*.png"))
+    if not image_files:
+        logger.warning(f"{tag} No images found in {real_images_dir}.")
+        return {
+            "map50": 0.0, "map50_95": 0.0, "n_images": 0,
+            "n_detections": 0, "mean_confidence": 0.0,
+            "eval_mode": "skipped",
+            "eval_mode_note": "No real images found — eval skipped. Pass --real_dir to enable.",
+        }
 
     try:
         from ultralytics import YOLO
@@ -189,16 +218,6 @@ def stage_eval(
 
     if not os.path.exists(weights_path):
         raise FileNotFoundError(f"{tag} Weights not found: {weights_path}. Run Stage 3.")
-
-    real_dir = Path(real_images_dir)
-    if not real_dir.is_dir():
-        raise FileNotFoundError(f"{tag} Real images directory not found: {real_images_dir}")
-
-    image_files = list(real_dir.glob("*.jpg")) + list(real_dir.glob("*.png"))
-    if not image_files:
-        logger.warning(f"{tag} No images found in {real_images_dir}.")
-        return {"map50": 0.0, "map50_95": 0.0, "n_images": 0,
-                "n_detections": 0, "mean_confidence": 0.0}
 
     logger.info(f"{tag} Running inference on {len(image_files)} images...")
     model = YOLO(weights_path)
@@ -237,13 +256,13 @@ def stage_eval(
         }
         predictions = yolo_results_to_coco_predictions(results, image_id_map)
         map_metrics = compute_map(predictions, ground_truth_coco=coco_gt_path)
+        eval_mode = "real_map"
+        eval_mode_note = "Ground-truth mAP computed with pycocotools."
         logger.info(
             f"{tag} mAP@50={map_metrics['map50']:.3f}  "
             f"mAP@50:95={map_metrics['map50_95']:.3f}"
         )
     else:
-        # Score-based proxy mAP when no ground-truth annotations exist
-        # (common scenario: user has real images but no bounding box labels)
         predictions = [
             {"image_id": i, "category_id": 1,
              "bbox": box.xyxy[0].tolist(), "score": box.conf.item()}
@@ -251,6 +270,8 @@ def stage_eval(
             for box in result.boxes
         ]
         map_metrics = compute_map(predictions, ground_truth_coco=None)
+        eval_mode = "proxy_only"
+        eval_mode_note = "No GT annotations — confidence-based proxy. Pass --gt_coco for real mAP."
         logger.info(
             f"{tag} Proxy mAP@50={map_metrics['map50']:.3f} "
             f"(no GT annotations — for ground-truth mAP pass --gt_coco)"
@@ -277,6 +298,8 @@ def stage_eval(
         "n_detections":        total_detections,
         "mean_confidence":     mean_conf,
         "failure_gallery_dir": gallery_dir,
+        "eval_mode":           eval_mode,
+        "eval_mode_note":      eval_mode_note,
     }
 
     # Persist metrics alongside weights
