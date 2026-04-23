@@ -34,7 +34,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +148,7 @@ def stage_eval(
     job_id: Optional[str] = None,
     status_callback: Optional[Callable[[str], None]] = None,
     n_failure_gallery: int = 10,
-) -> Dict[str, float]:
+) -> Dict[str, Any]:
     """
     Evaluate trained weights on real images and return metric dict.
 
@@ -165,9 +165,10 @@ def stage_eval(
                             the failure gallery. Set 0 to disable. Default: 10.
 
     Returns:
-        Dict: {"map50": float, "map50_95": float, "n_images": int,
+        Dict: {"map50": float | None, "map50_95": float | None, "n_images": int,
                "n_detections": int, "mean_confidence": float,
-               "failure_gallery_dir": str}
+               "failure_gallery_dir": str, "eval_mode": str, "eval_mode_note": str}
+               map50/map50_95 are None when eval_mode is "skipped".
     """
     tag = f"[Stage 4: Eval{f'/{job_id}' if job_id else ''}]"
 
