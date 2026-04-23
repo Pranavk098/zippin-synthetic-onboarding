@@ -9,6 +9,7 @@ train_workers: 0      # 0 = main-process loading (required on Windows)
 ewc_lambda: 5000
 camera_distance_range: [1.5, 3.0]
 camera_elevation_range: [0.1, 1.5]
+val_fraction: 0.2          # fraction of renders reserved as held-out val set
 
 # ---- Stage 2a-2c: AI Mesh Reconstruction (TripoSR — free, local, no API cost) ----
 #
