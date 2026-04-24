@@ -49,7 +49,10 @@ def _apply_deterministic_split(coco_json_path: str, val_fraction: float = 0.2) -
         data = _json.load(f)
 
     images = sorted(data["images"], key=lambda x: x["file_name"])
-    n_val = max(1, int(len(images) * val_fraction))
+    if not images:
+        logger.warning("[Generate] _apply_deterministic_split: no images in COCO JSON, skipping split.")
+        return
+    n_val = max(0, int(len(images) * val_fraction))
     val_ids = {img["id"] for img in images[-n_val:]}
 
     for img in data["images"]:
