@@ -52,10 +52,8 @@ checkpoints/<run_id>/
 ├── renders/               — 6 deterministically-selected synthetic renders
 │   ├── render_001.jpg
 │   └── ...
-├── coco_annotations.json  — Stage 2 COCO output
 ├── <run_id>_weights.pt    — fine-tuned YOLOv8n weights
 ├── ewc_state_snapshot.pt  — EWC Fisher matrix snapshot after this run
-├── <run_id>_metrics.json  — eval metrics with eval_mode label
 └── failure_gallery/       — 10 lowest-confidence real images (if eval ran)
     └── gallery_summary.json
 ```
